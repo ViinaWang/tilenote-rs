@@ -46,8 +46,19 @@ fn xdg_home(var: &str, home: &Path, default: &str) -> PathBuf {
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
     OneDarkPro,
+    OneDarkDim,
     GithubLight,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Density {
+    Compact,
+    Cozy,
+    Roomy,
+}
+
+pub const DEFAULT_CATEGORIES: [&str; 6] = ["灵感", "会议", "待办", "规范", "随笔", "其他"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -62,6 +73,22 @@ pub struct Settings {
     pub default_preview: bool,
     pub tile_width: f32,
     pub tile_height: f32,
+    /// Row spacing of settings UI: compact / cozy / roomy.
+    pub density: Density,
+    /// Debounce before tile text is flushed to disk.
+    pub autosave_ms: u32,
+    /// Ask before closing a tile window from its title bar.
+    pub confirm_close: bool,
+    /// Tile footer element switches (tag chip / char count / relative time).
+    pub show_tag: bool,
+    pub show_count: bool,
+    pub show_time: bool,
+    /// Canonicalize `[] task` shorthand when switching to preview.
+    pub normalize_shorthand: bool,
+    /// Rounded corners + soft shadow on tile windows (needs compositor alpha).
+    pub tile_rounded: bool,
+    /// User-defined note categories shown in tile tag menu and library filter.
+    pub categories: Vec<String>,
 }
 
 impl Default for Settings {
@@ -76,6 +103,15 @@ impl Default for Settings {
             default_preview: false,
             tile_width: 440.0,
             tile_height: 350.0,
+            density: Density::Cozy,
+            autosave_ms: 400,
+            confirm_close: false,
+            show_tag: true,
+            show_count: true,
+            show_time: true,
+            normalize_shorthand: true,
+            tile_rounded: true,
+            categories: DEFAULT_CATEGORIES.iter().map(|s| s.to_owned()).collect(),
         }
     }
 }
@@ -101,6 +137,11 @@ pub struct NoteMeta {
     pub accent: usize,
     pub pinned: bool,
     pub preview: bool,
+    /// Position on the library map canvas; (0,0) means "never laid out".
+    pub map_x: f32,
+    pub map_y: f32,
+    /// Unix seconds of the last content save; 0 for legacy notes.
+    pub updated_at: u64,
 }
 
 impl Default for NoteMeta {
@@ -112,6 +153,9 @@ impl Default for NoteMeta {
             accent: 0,
             pinned: true,
             preview: false,
+            map_x: 0.0,
+            map_y: 0.0,
+            updated_at: 0,
         }
     }
 }
@@ -128,6 +172,23 @@ impl NoteMeta {
     pub fn save(&self, paths: &Paths) -> Result<()> {
         validate_id(&self.id)?;
         atomic_write(&paths.meta_path(&self.id), &serde_json::to_vec_pretty(self)?)
+    }
+}
+
+pub fn now_unix() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// Human-friendly relative time for note lists and tile footers.
+pub fn relative_time(updated_at: u64) -> String {
+    if updated_at == 0 { return "—".to_owned(); }
+    let delta = now_unix().saturating_sub(updated_at);
+    match delta {
+        0..=59 => "刚刚".to_owned(),
+        60..=3_599 => format!("{} 分钟前", delta / 60),
+        3_600..=86_399 => format!("{} 小时前", delta / 3_600),
+        86_400..=172_799 => "昨天".to_owned(),
+        _ => format!("{} 天前", delta / 86_400),
     }
 }
 
@@ -154,7 +215,8 @@ pub fn list_notes(paths: &Paths) -> Vec<NoteMeta> {
             NoteMeta::load(paths, id).ok()
         })
         .collect();
-    notes.sort_unstable_by(|a, b| b.id.cmp(&a.id));
+    // Newest activity first; legacy notes without timestamps fall back to id order.
+    notes.sort_unstable_by(|a, b| b.updated_at.cmp(&a.updated_at).then_with(|| b.id.cmp(&a.id)));
     notes
 }
 
@@ -168,6 +230,7 @@ pub fn create_note(paths: &Paths, title: &str, settings: &Settings) -> Result<No
         accent: settings.accent % 6,
         pinned: settings.auto_pin,
         preview: settings.default_preview,
+        updated_at: now_unix(),
         ..Default::default()
     };
     // Write content before metadata: list_notes only discovers committed note metadata.

@@ -63,19 +63,31 @@ fn current_workspace() -> Result<i32> {
 
 pub fn make_tile_float_and_pin(id: &str, want_pin: bool) -> Result<()> {
     let c = find_tile(id)?.context("tile window not found")?;
-    if !c.floating { dispatch("setfloating", &target(&c))?; }
+    // Always dispatch setfloating: it is idempotent for already-floating
+    // windows and removes the tiled-then-floated flicker when the window is
+    // registered before our first poll observes it.
+    let _ = dispatch("setfloating", &target(&c));
     if c.pinned != want_pin { dispatch("pin", &target(&c))?; }
     let _ = dispatch("alterzorder", &format!("top,{}", target(&c)));
     Ok(())
 }
 
+/// Newly spawned windows register their app_id some time after the first
+/// frame; poll fast at first, then keep retrying for a long while so slow
+/// starts (cold compile caches, heavy compositor load) still get floated.
 pub fn pin_when_ready(id: String, want_pin: bool) {
     thread::spawn(move || {
-        for _ in 0..30 {
-            thread::sleep(Duration::from_millis(160));
-            if matches!(find_tile(&id), Ok(Some(_))) {
-                let _ = make_tile_float_and_pin(&id, want_pin);
-                return;
+        let start = std::time::Instant::now();
+        loop {
+            let fast = start.elapsed() < Duration::from_secs(3);
+            thread::sleep(if fast { Duration::from_millis(80) } else { Duration::from_millis(400) });
+            match find_tile(&id) {
+                Ok(Some(_)) => {
+                    let _ = make_tile_float_and_pin(&id, want_pin);
+                    return;
+                }
+                _ if start.elapsed() > Duration::from_secs(20) => return,
+                _ => (),
             }
         }
     });

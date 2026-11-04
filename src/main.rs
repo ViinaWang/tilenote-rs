@@ -132,8 +132,9 @@ fn run_settings(paths: Paths) -> Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_title("TileNote — 设置")
             .with_app_id(hyprland::SETTINGS_APP_ID)
-            .with_inner_size(egui::vec2(960.0, 690.0))
-            .with_min_inner_size(egui::vec2(700.0, 500.0)),
+            .with_inner_size(egui::vec2(760.0, 580.0))
+            .with_min_inner_size(egui::vec2(680.0, 460.0))
+            .with_decorations(false),
         ..Default::default()
     };
     eframe::run_native(hyprland::SETTINGS_APP_ID, options,
@@ -144,16 +145,20 @@ fn run_settings(paths: Paths) -> Result<()> {
 fn run_tile(paths: Paths, id: &str) -> Result<()> {
     let config = Settings::load(&paths);
     let id_owned = id.to_owned();
+    // Rounded tiles reserve a margin for the soft shadow and need an alpha
+    // channel; the margin is baked into the logical window size.
+    let shadow = if config.tile_rounded { ui::tile::SHADOW_MARGIN } else { 0.0 };
     // A separate process has a separate Wayland app_id; compositor rules can
     // distinguish tiles from the regular settings window by class.
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(hyprland::title_for(id))
             .with_app_id(hyprland::TILE_APP_ID)
-            .with_inner_size(egui::vec2(config.tile_width, config.tile_height))
-            .with_min_inner_size(egui::vec2(300.0, 190.0))
+            .with_inner_size(egui::vec2(config.tile_width + shadow * 2.0, config.tile_height + shadow * 2.0))
+            .with_min_inner_size(egui::vec2(300.0 + shadow * 2.0, 190.0 + shadow * 2.0))
             .with_decorations(false)
             .with_resizable(true)
+            .with_transparent(config.tile_rounded)
             .with_always_on_top(),
         ..Default::default()
     };

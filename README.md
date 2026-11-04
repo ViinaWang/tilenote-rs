@@ -9,12 +9,14 @@
 ## 功能
 
 - **独立磁贴窗口**：设置窗口和每张磁贴分别是独立进程，拥有各自的 Wayland `app_id`（`io.github.tilenote.tile` / `io.github.tilenote.settings`），关闭设置不影响磁贴。
-- **浮动与置顶**：通过 `hyprctl` 自动设置浮动、`pin` 跨工作区常驻、`alterzorder` 调整堆叠顺序。
+- **浮动与置顶**：磁贴启动后自动通过 `hyprctl` 设置浮动、`pin` 跨工作区常驻、`alterzorder` 置顶，无需手动平铺管理。
+- **笔记库双视图**：设置窗口首页是全部笔记的「画布」——可拖动重排的迷你磁贴地图；也可切到「列表」三栏视图（分类 → 笔记列表 → Markdown 详情）按分类、搜索快速定位。
 - **一键呼出**：`tilenote toggle` 把所有磁贴收进/移出隐藏的特殊工作区，磁贴隐藏期间仍在运行。
-- **Markdown 双模式**：右上角眼睛按钮切换编辑 / 渲染预览；预览中可点击的 checkbox 会直接写回 Markdown 正文。
-- **任务简写**：`[] 任务`、`[ ] 任务`、`[x] 已完成` 在切换预览时自动规范为 GFM 的 `- [ ]` / `- [x]`（跳过围栏代码块）。
-- **主题**：One Dark Pro / GitHub Light 双主题、6 种强调色、字号与圆角可调。
-- **本地持久化**：输入停止约 400ms 后原子写入 `.md`，元数据与设置存为 `.json`。
+- **Markdown 双模式**：磁贴右上角按钮切换编辑 / 渲染预览；预览中可点击的 checkbox 会直接写回 Markdown 正文。
+- **任务简写**：`[] 任务`、`[ ] 任务`、`[x] 已完成` 在切换预览时自动规范为 GFM 的 `- [ ]` / `- [x]`（跳过围栏代码块，可在设置中关闭）。
+- **主题**：One Dark / One Dark Dim / One Light 三主题、6 种强调色、密度 / 字号 / 圆角可调，设置项支持搜索跳转。
+- **圆角磁贴**：默认使用带柔和阴影的透明圆角窗口（需合成器支持 alpha；异常时可在「磁贴 → 圆角与阴影窗口」关闭）。
+- **本地持久化**：输入停止后按设置的防抖间隔原子写入 `.md`，元数据与设置存为 `.json`。
 - **中文显示**：启动时通过 fontconfig 加载系统简体中文字体（Noto CJK SC 等）；也可用 `TILENOTE_FONT=/path/to/font.ttc:2` 手动指定字体与 face。项目本身不分发字体文件。
 
 ## 安装
@@ -79,7 +81,13 @@ bind = SUPER ALT, M, exec, tilenote settings
 
 最新绑定文档：<https://wiki.hypr.land/Configuring/Binds/>。
 
-程序启动后会自行完成浮动、pin、置顶等窗口操作，通常无需额外窗口规则；有严格 compositor 管理需求时可按 `class` 配置规则（磁贴 `io.github.tilenote.tile`，设置 `io.github.tilenote.settings`）。
+程序启动后会自行完成浮动、pin、置顶等窗口操作，通常无需额外窗口规则。如果个别发行版上磁贴仍以平铺方式打开，可以加一条窗口规则兜底（旧版语法）：
+
+```ini
+windowrule = float, class:^(io\.github\.tilenote\.tile)$
+```
+
+也可以按 `class` 做更细的 compositor 管理（磁贴 `io.github.tilenote.tile`，设置 `io.github.tilenote.settings`）。
 
 > Wayland 普通窗口没有跨所有图层的强制置顶权限：Hyprland 的 `pin` 表示在普通工作区持续显示，全屏应用和层壳 surface 仍可覆盖磁贴；`tilenote toggle` 的隐藏依赖 Hyprland 特殊工作区。
 
