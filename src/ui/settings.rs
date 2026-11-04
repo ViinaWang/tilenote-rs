@@ -39,9 +39,14 @@ impl SettingsApp {
         let settings = Settings::load(&paths);
         palette::install_cjk_fallback(&cc.egui_ctx);
         palette::apply(&cc.egui_ctx, &settings);
+        // Debug aid: open directly on a given section (e.g. TILENOTE_SECTION=5).
+        let section = std::env::var("TILENOTE_SECTION").ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .filter(|i| *i < SECTIONS.len())
+            .unwrap_or(0);
         Self {
             paths, settings,
-            section: 0,
+            section,
             search: String::new(),
             flash_row: None,
             flash_until: Instant::now(),
@@ -401,23 +406,34 @@ impl SettingsApp {
                 (&["SUPER", "SHIFT", "M"][..], "tilenote new", "创建并打开新笔记"),
                 (&["SUPER", "ALT", "M"][..], "tilenote settings", "打开设置窗口"),
             ] {
+                let row_w = ui.available_width();
                 ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(desc).size(12.5).color(p.strong));
-                        ui.label(RichText::new(cmd).monospace().size(10.5).color(p.accent));
-                    });
+                    // Fixed-width label column: prevents the wrapping labels
+                    // from eating the whole row and hiding the keycaps.
+                    let right_w = (keys.len() as f32 * 54.0 + 96.0).max(150.0);
+                    let left_w = (row_w - right_w - 36.0).max(120.0);
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(left_w, 44.0),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            ui.add(egui::Label::new(
+                                RichText::new(desc).size(12.5).color(p.strong)).truncate());
+                            ui.add(egui::Label::new(
+                                RichText::new(cmd).monospace().size(10.5).color(p.accent)).truncate());
+                        },
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(14.0);
+                        if ui.button(RichText::new("复制").size(11.0)).clicked() {
+                            ui.ctx().copy_text(cmd.to_owned());
+                        }
                         for key in keys.iter().rev() {
                             components::keycap(ui, p, key);
-                        }
-                        if ui.button("复制命令").clicked() {
-                            ui.ctx().copy_text(cmd.to_owned());
                         }
                     });
                 });
                 ui.add_space(8.0);
-                let width = ui.available_width();
-                ui.painter().hline(14.0..=width - 14.0, ui.cursor().min.y, Stroke::new(1.0, p.border_soft()));
+                ui.painter().hline(14.0..=ui.available_width() - 14.0, ui.cursor().min.y, Stroke::new(1.0, p.border_soft()));
                 ui.add_space(8.0);
             }
             ui.label(RichText::new("绑定语法取决于 Hyprland 版本：examples/ 里有 hyprlang 与 Lua 两种示例。")
