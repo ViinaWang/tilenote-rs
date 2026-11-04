@@ -172,14 +172,14 @@ impl Library {
         if self.notes.is_empty() {
             empty_state(ui, p);
         } else if self.view == 0 {
-            self.show_map(ui, p, paths);
+            self.show_map(ui, p, paths, settings);
         } else {
             self.show_list(ui, p, paths, settings);
         }
         self.confirm_delete(ui.ctx().clone(), p, paths);
     }
 
-    fn show_map(&mut self, ui: &mut egui::Ui, p: Palette, paths: &Paths) {
+    fn show_map(&mut self, ui: &mut egui::Ui, p: Palette, paths: &Paths, settings: &Settings) {
         let visible: Vec<usize> = self.notes.iter().enumerate()
             .filter(|(_, n)| self.matches(n))
             .map(|(i, _)| i)
@@ -217,7 +217,7 @@ impl Library {
                 painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(if selected { 1.5 } else { 1.0 }, border), egui::StrokeKind::Inside);
                 painter.rect_filled(egui::Rect::from_min_max(rect.min, pos2(rect.min.x + 3.0, rect.max.y)),
                     CornerRadius { nw: 10, ne: 0, sw: 10, se: 0 },
-                    palette::accents(self.notes[i].accent.wrapping_rem(6)).gamma_multiply(0.85));
+                    palette::accents(settings.theme)[self.notes[i].accent % 6].gamma_multiply(0.85));
                 let title = self.notes[i].title.clone();
                 painter.text(pos2(rect.min.x + 12.0, rect.min.y + 17.0), Align2::LEFT_CENTER,
                     truncate(&title, 14), FontId::proportional(12.0), p.strong);

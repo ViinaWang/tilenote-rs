@@ -161,10 +161,11 @@ impl TileApp {
                     .on_hover_text("拖动磁贴");
             }
             // Tools: category / pin / edit-preview / close.
-            let cat_response = ui.menu_button(RichText::new("▤").size(11.5).color(p.dim), |ui| {
+            let categories = self.settings.categories.clone();
+            ui.menu_button(RichText::new("▤").size(11.5).color(p.dim), |ui| {
                 ui.set_min_width(120.0);
                 ui.label(RichText::new("磁贴分类").size(10.5).color(p.faint));
-                for tag in self.settings.categories.iter() {
+                for tag in &categories {
                     if ui.selectable_label(self.meta.tag == *tag, tag).clicked() {
                         self.meta.tag = tag.clone();
                         self.save_meta();
@@ -295,7 +296,7 @@ impl eframe::App for TileApp {
         let p = self.palette();
         let rounded = self.settings.tile_rounded;
         let margin = if rounded { SHADOW_MARGIN } else { 0.0 };
-        let radius: i8 = if rounded { self.settings.corner_radius.max(1) as i8 } else { 0 };
+        let radius: u8 = if rounded { self.settings.corner_radius.max(1) } else { 0 };
         let footer_h = if self.footer_visible() { FOOTER_H } else { 0.0 };
 
         egui::CentralPanel::default()
@@ -308,7 +309,7 @@ impl eframe::App for TileApp {
                     for (expand, alpha) in [(13.0f32, 16u8), (8.0, 24), (4.0, 34)] {
                         painter.rect_filled(
                             body.expand(expand),
-                            CornerRadius::same(radius.saturating_add(expand as i8)),
+                            CornerRadius::same(radius.saturating_add(expand as u8)),
                             p.shadow_color().gamma_multiply(alpha as f32 / 60.0),
                         );
                     }

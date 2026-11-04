@@ -572,7 +572,7 @@ fn paint_logo(ui: &mut egui::Ui, size: f32) {
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(size + 4.0), Sense::hover());
     let painter = ui.painter();
     let r = size * 0.24;
-    painter.rect_filled(rect, CornerRadius::same((r as i8).max(3)), palette::hex(0x21252B));
+    painter.rect_filled(rect, CornerRadius::same((r as u8).max(3)), palette::hex(0x21252B));
     let inner = rect.shrink(size * 0.18);
     let cell = Vec2::new(inner.width() / 2.0, inner.height() / 2.0);
     let gap = 1.5;
