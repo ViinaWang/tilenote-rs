@@ -193,24 +193,27 @@ impl Library {
         egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
             ui.set_min_size(canvas);
             let clip = ui.clip_rect();
-            let painter = ui.painter();
             // Dot grid over the visible part of the canvas.
-            let start_x = (clip.left() / GRID_STEP).floor() * GRID_STEP;
-            let start_y = (clip.top() / GRID_STEP).floor() * GRID_STEP;
-            let mut x = start_x;
-            while x < clip.right() {
-                let mut y = start_y;
-                while y < clip.bottom() {
-                    painter.circle_filled(pos2(x, y), 1.0, p.grid_dot());
-                    y += GRID_STEP;
+            {
+                let painter = ui.painter();
+                let start_x = (clip.left() / GRID_STEP).floor() * GRID_STEP;
+                let start_y = (clip.top() / GRID_STEP).floor() * GRID_STEP;
+                let mut x = start_x;
+                while x < clip.right() {
+                    let mut y = start_y;
+                    while y < clip.bottom() {
+                        painter.circle_filled(pos2(x, y), 1.0, p.grid_dot());
+                        y += GRID_STEP;
+                    }
+                    x += GRID_STEP;
                 }
-                x += GRID_STEP;
             }
             for i in visible {
                 let id = self.notes[i].id.clone();
                 let selected = self.selected.as_deref() == Some(id.as_str());
                 let rect = egui::Rect::from_min_size(pos2(self.notes[i].map_x, self.notes[i].map_y), TILE_SIZE);
                 let response = ui.allocate_rect(rect, Sense::click_and_drag());
+                let painter = ui.painter();
                 // Card visuals.
                 painter.rect_filled(rect, CornerRadius::same(10), p.panel);
                 let border = if selected { p.accent } else if response.hovered() { p.border } else { p.border_soft() };
