@@ -99,14 +99,14 @@ impl SettingsApp {
                     window_controls(ui, p);
                 });
                 let rect = ui.max_rect();
-                ui.painter().hline(rect.left()..=rect.right(), rect.bottom() - 0.5, p.border_soft());
+                ui.painter().hline(rect.left()..=rect.right(), rect.bottom() - 0.5, Stroke::new(1.0, p.border_soft()));
             });
     }
 
     fn nav(&mut self, ctx: &egui::Context, p: Palette) {
         egui::SidePanel::left("settings_nav")
             .exact_width(NAV_W)
-            .frame(egui::Frame::default().fill(p.chrome).inner_margin(egui::Margin::same(10.0)))
+            .frame(egui::Frame::default().fill(p.chrome).inner_margin(egui::Margin::same(10)))
             .show(ctx, |ui| {
                 ui.label(RichText::new("设置分组").monospace().size(9.0).color(p.faint));
                 ui.add_space(6.0);
@@ -413,7 +413,7 @@ impl SettingsApp {
                 });
                 ui.add_space(8.0);
                 let width = ui.available_width();
-                ui.painter().hline(14.0..=width - 14.0, ui.cursor().min.y, p.border_soft());
+                ui.painter().hline(14.0..=width - 14.0, ui.cursor().min.y, Stroke::new(1.0, p.border_soft()));
                 ui.add_space(8.0);
             }
             ui.label(RichText::new("绑定语法取决于 Hyprland 版本：examples/ 里有 hyprlang 与 Lua 两种示例。")
@@ -572,7 +572,7 @@ fn paint_logo(ui: &mut egui::Ui, size: f32) {
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(size + 4.0), Sense::hover());
     let painter = ui.painter();
     let r = size * 0.24;
-    painter.rect_filled(rect, CornerRadius::same((r as u8).max(3)), palette::hex(0x21252B));
+    painter.rect_filled(rect, CornerRadius::same((r as i8).max(3)), palette::hex(0x21252B));
     let inner = rect.shrink(size * 0.18);
     let cell = Vec2::new(inner.width() / 2.0, inner.height() / 2.0);
     let gap = 1.5;
@@ -592,11 +592,12 @@ fn paint_logo(ui: &mut egui::Ui, size: f32) {
 
 fn window_controls(ui: &mut egui::Ui, p: Palette) {
     ui.add_space(6.0);
-    let mut buttons = [("—", "最小化", false), ("□", "最大化 / 还原", false), ("×", "关闭设置窗口", true)];
-    for (glyph, tip, danger) in buttons.iter_mut() {
-        let (rect, mut response) = ui.allocate_exact_size(Vec2::new(34.0, TITLE_H - 8.0), Sense::click());
+    let buttons = [("—", "最小化", false), ("□", "最大化 / 还原", false), ("×", "关闭设置窗口", true)];
+    for (glyph, tip, danger) in buttons.iter() {
+        let (rect, response) = ui.allocate_exact_size(Vec2::new(34.0, TITLE_H - 8.0), Sense::click());
         let painter = ui.painter();
         let hovered = response.hovered();
+        let clicked = response.clicked();
         if hovered && *danger {
             painter.rect_filled(rect, CornerRadius::same(6), p.danger);
         } else if hovered {
@@ -605,7 +606,7 @@ fn window_controls(ui: &mut egui::Ui, p: Palette) {
         painter.text(rect.center(), Align2::CENTER_CENTER, *glyph,
             FontId::proportional(12.0), if hovered && *danger { Color32::WHITE } else { p.dim });
         response.on_hover_text(*tip);
-        if response.clicked() {
+        if clicked {
             match *glyph {
                 "—" => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
                 "□" => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(

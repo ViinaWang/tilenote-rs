@@ -13,7 +13,7 @@ use eframe::egui::{
 pub fn kicker(ui: &mut Ui, p: Palette, text: &str) {
     ui.horizontal(|ui| {
         let (rect, _) = ui.allocate_exact_size(Vec2::new(3.0, 11.0), Sense::hover());
-        ui.painter().rect_filled(rect, CornerRadius::same(1.5), p.accent);
+        ui.painter().rect_filled(rect, CornerRadius::same(2), p.accent);
         ui.add_space(6.0);
         ui.label(RichText::new(text.to_uppercase()).monospace().size(9.5).color(p.faint));
     });
@@ -50,7 +50,7 @@ pub fn group(ui: &mut Ui, p: Palette, icon: &str, title: &str, desc: &str, body:
                 CornerRadius { nw: 12, ne: 12, sw: 0, se: 0 },
                 p.chrome,
             );
-            painter.hline(header.left() + 1.0..=header.right() - 1.0, header.bottom() - 0.5, p.border_soft());
+            painter.hline(header.left() + 1.0..=header.right() - 1.0, header.bottom() - 0.5, Stroke::new(1.0, p.border_soft()));
             let icon_rect = egui::Rect::from_min_size(
                 pos2(header.left() + 14.0, header.center().y - 14.0),
                 Vec2::splat(28.0),
@@ -80,7 +80,7 @@ pub fn setting_row(
     label: &str,
     desc: &str,
     flash: bool,
-    body: impl FnOnce(&mut Ui),
+    body: impl FnOnce(&mut Ui) -> bool,
 ) {
     let pad = match density {
         Density::Compact => 5.0,
@@ -112,7 +112,7 @@ pub fn setting_row(
         painter.rect_filled(rect, 4.0, p.accent.gamma_multiply(0.10));
         painter.rect_stroke(rect, 4.0, Stroke::new(1.2, p.accent.gamma_multiply(0.55)), egui::StrokeKind::Inside);
     }
-    painter.hline(rect.left() + 14.0..=rect.right() - 14.0, rect.bottom() - 1.0, p.border_soft());
+    painter.hline(rect.left() + 14.0..=rect.right() - 14.0, rect.bottom() - 1.0, Stroke::new(1.0, p.border_soft()));
 }
 
 /// Custom pill toggle switch (42x22) with animated knob; replaces egui's
@@ -147,7 +147,7 @@ pub fn segmented(ui: &mut Ui, p: Palette, options: &[&str], selected: &mut usize
     egui::Frame::default()
         .fill(p.sunken)
         .corner_radius(CornerRadius::same(8))
-        .inner_margin(egui::Margin::same(3.0))
+        .inner_margin(egui::Margin::same(3))
         .stroke(Stroke::new(1.0, p.border_soft()))
         .show(ui, |ui| {
             ui.horizontal_centered(|ui| {

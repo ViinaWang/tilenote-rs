@@ -2,7 +2,7 @@
 //! three-pane list view (categories / note rows / markdown detail).
 use crate::{
     hyprland, model::{self, NoteMeta, Paths, Settings},
-    ui::{components, palette::Palette},
+    ui::{components, palette::{self, Palette}},
 };
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, RichText, Sense, Stroke, Vec2, pos2};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
@@ -254,7 +254,7 @@ impl Library {
         let selected_id = self.selected.clone();
         egui::SidePanel::left("lib_tags")
             .exact_width(150.0)
-            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(4.0, 0.0)))
+            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(4, 0)))
             .show_inside(ui, |ui| {
                 let total = self.notes.len();
                 if ui.add(nav_item(p, self.filter_tag.is_none(), "全部笔记", total, "⊞")).clicked() {
@@ -274,7 +274,7 @@ impl Library {
             });
         egui::SidePanel::right("lib_detail")
             .exact_width(330.0)
-            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(6.0, 0.0)))
+            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(6, 0)))
             .show_inside(ui, |ui| {
                 self.detail(ui, p, paths);
             });

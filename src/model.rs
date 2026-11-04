@@ -111,7 +111,7 @@ impl Default for Settings {
             show_time: true,
             normalize_shorthand: true,
             tile_rounded: true,
-            categories: DEFAULT_CATEGORIES.iter().map(|s| s.to_owned()).collect(),
+            categories: DEFAULT_CATEGORIES.iter().map(|s| s.to_string()).collect(),
         }
     }
 }

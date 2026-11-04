@@ -161,12 +161,7 @@ impl TileApp {
                     .on_hover_text("拖动磁贴");
             }
             // Tools: category / pin / edit-preview / close.
-            let category_id = ui.id().with("category-menu");
-            let cat = components::tool_button(ui, p, "▤", false, "磁贴分类");
-            if cat.clicked() {
-                ui.memory_mut(|m| m.toggle_popup(category_id));
-            }
-            egui::menu::popup_below_widget(ui, category_id, &cat, |ui| {
+            let cat_response = ui.menu_button(RichText::new("▤").size(11.5).color(p.dim), |ui| {
                 ui.set_min_width(120.0);
                 ui.label(RichText::new("磁贴分类").size(10.5).color(p.faint));
                 for tag in self.settings.categories.iter() {
@@ -176,7 +171,9 @@ impl TileApp {
                         ui.close();
                     }
                 }
-            });
+            })
+            .response
+            .on_hover_text("磁贴分类");
             if components::tool_button(ui, p, if self.meta.pinned { "⌖" } else { "◇" },
                 self.meta.pinned, if self.meta.pinned { "取消固定" } else { "固定到所有工作区" }).clicked() {
                 self.toggle_pin();
@@ -293,12 +290,12 @@ impl TileApp {
 }
 
 impl eframe::App for TileApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.periodic_sync(ctx);
         let p = self.palette();
         let rounded = self.settings.tile_rounded;
         let margin = if rounded { SHADOW_MARGIN } else { 0.0 };
-        let radius = if rounded { self.settings.corner_radius.max(1) as u8 } else { 0u8 };
+        let radius: i8 = if rounded { self.settings.corner_radius.max(1) as i8 } else { 0 };
         let footer_h = if self.footer_visible() { FOOTER_H } else { 0.0 };
 
         egui::CentralPanel::default()
@@ -308,15 +305,15 @@ impl eframe::App for TileApp {
                 let painter = ui.painter();
                 if rounded {
                     // Layered soft shadow around the tile.
-                    for (expand, alpha) in [(13.0, 16u8), (8.0, 24), (4.0, 34)] {
+                    for (expand, alpha) in [(13.0f32, 16u8), (8.0, 24), (4.0, 34)] {
                         painter.rect_filled(
                             body.expand(expand),
-                            CornerRadius::same(radius.saturating_add(expand as u8)),
+                            CornerRadius::same(radius.saturating_add(expand as i8)),
                             p.shadow_color().gamma_multiply(alpha as f32 / 60.0),
                         );
                     }
                 }
-                let focused = frame.info().window_info.focused;
+                let focused = ctx.input(|i| i.viewport().focused).unwrap_or(true);
                 painter.rect_filled(body, CornerRadius::same(radius), p.panel);
                 let border = if focused { p.accent.gamma_multiply(0.35) } else { p.border };
                 painter.rect_stroke(body, CornerRadius::same(radius),
@@ -339,7 +336,7 @@ impl eframe::App for TileApp {
                 painter.rect_filled(title_rect,
                     CornerRadius { nw: radius, ne: radius, sw: 0, se: 0 }, p.chrome);
                 painter.hline(title_rect.left() + 1.0..=title_rect.right() - 1.0,
-                    title_rect.bottom() - 0.5, p.border_soft());
+                    title_rect.bottom() - 0.5, Stroke::new(1.0, p.border_soft()));
                 if footer_h > 0.0 {
                     let footer_rect = egui::Rect::from_min_max(
                         pos2(body.left(), body.bottom() - footer_h),
@@ -348,17 +345,23 @@ impl eframe::App for TileApp {
                     painter.rect_filled(footer_rect,
                         CornerRadius { nw: 0, ne: 0, sw: radius, se: radius }, p.chrome);
                     painter.hline(footer_rect.left() + 1.0..=footer_rect.right() - 1.0,
-                        footer_rect.top() + 0.5, p.border_soft());
-                    ui.allocate_ui_at_rect(footer_rect.shrink(egui::Margin::symmetric(3.0, 0.0)), |ui| {
+                        footer_rect.top() + 0.5, Stroke::new(1.0, p.border_soft()));
+                    let footer_inner = egui::Rect::from_min_max(
+                        pos2(footer_rect.left() + 3.0, footer_rect.top()),
+                        pos2(footer_rect.right() - 3.0, footer_rect.bottom()),
+                    );
+                    ui.allocate_ui_at_rect(footer_inner, |ui| {
                         self.footer(ui, p);
                     });
                 }
                 ui.allocate_ui_at_rect(title_rect, |ui| {
                     self.header(ui, p);
                 });
-                ui.allocate_ui_at_rect(content_rect.shrink(egui::Margin {
-                    left: 3.0, right: 3.0, top: 0.0, bottom: 0.0,
-                }), |ui| {
+                let content_inner = egui::Rect::from_min_max(
+                    pos2(content_rect.left() + 3.0, content_rect.top()),
+                    pos2(content_rect.right() - 3.0, content_rect.bottom()),
+                );
+                ui.allocate_ui_at_rect(content_inner, |ui| {
                     self.content(ui, p);
                 });
             });
