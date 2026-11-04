@@ -294,6 +294,15 @@ impl TileApp {
 }
 
 impl eframe::App for TileApp {
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        if self.settings.tile_rounded {
+            [0.0, 0.0, 0.0, 0.0]
+        } else {
+            let c = visuals.panel_fill;
+            [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0, 1.0]
+        }
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.periodic_sync(ctx);
         let p = self.palette();

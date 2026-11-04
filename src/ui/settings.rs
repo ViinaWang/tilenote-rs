@@ -471,6 +471,12 @@ impl SettingsApp {
 }
 
 impl eframe::App for SettingsApp {
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        // Always opaque: a borderless window must never show the desktop through it.
+        let c = visuals.panel_fill;
+        [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0, 1.0]
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.last_read.elapsed() > Duration::from_secs(3) {
             let next = Settings::load(&self.paths);
