@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TileNote
+Name[zh_CN]=TileNote 笔记磁贴
+Comment=Floating Markdown notes for Hyprland
+Comment[zh_CN]=Hyprland 浮动 Markdown 笔记
+Exec=tilenote settings
+Terminal=false
+Categories=Utility;TextEditor;
+StartupNotify=true
