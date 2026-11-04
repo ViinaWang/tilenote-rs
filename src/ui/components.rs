@@ -74,7 +74,13 @@ pub fn group(ui: &mut Ui, p: Palette, icon: &str, title: &str, desc: &str, body:
                     truncate_chars(desc, max_chars), FontId::proportional(10.5), p.dim);
             }
             ui.add_space(6.0);
-            body(ui);
+            // Uniform horizontal padding for all body content so rows and
+            // plain labels never touch the card border.
+            egui::Frame::none()
+                .inner_margin(egui::Margin { left: 20, right: 20, top: 0, bottom: 0 })
+                .show(ui, |ui| {
+                    body(ui);
+                });
             ui.add_space(10.0);
         });
 }
@@ -102,24 +108,19 @@ pub fn setting_row(
     let stacked = width < 480.0;
     ui.add_space(pad);
     if stacked {
-        ui.horizontal(|ui| {
-            ui.add_space(18.0);
-            ui.vertical(|ui| {
-                ui.set_max_width((width - 36.0).max(80.0));
-                ui.label(RichText::new(label).size(13.0).color(p.strong));
-                if !desc.is_empty() {
-                    ui.label(RichText::new(desc).size(11.0).color(p.dim));
-                }
-            });
+        ui.vertical(|ui| {
+            ui.set_max_width((width).max(80.0));
+            ui.label(RichText::new(label).size(13.0).color(p.strong));
+            if !desc.is_empty() {
+                ui.label(RichText::new(desc).size(11.0).color(p.dim));
+            }
         });
-        ui.add_space(2.0);
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.add_space(18.0);
             body(ui);
         });
     } else {
         ui.horizontal(|ui| {
-            ui.add_space(18.0);
             ui.vertical(|ui| {
                 ui.set_min_width((width * 0.42).clamp(140.0, 300.0));
                 ui.set_max_width((width * 0.50).max(160.0));
@@ -129,7 +130,6 @@ pub fn setting_row(
                 }
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.add_space(16.0);
                 body(ui);
             });
         });
@@ -141,7 +141,7 @@ pub fn setting_row(
         painter.rect_filled(rect, 4.0, p.accent.gamma_multiply(0.10));
         painter.rect_stroke(rect, 4.0, Stroke::new(1.2, p.accent.gamma_multiply(0.55)), egui::StrokeKind::Inside);
     }
-    painter.hline(rect.left() + 14.0..=rect.right() - 14.0, rect.bottom() - 1.0, Stroke::new(1.0, p.border_soft()));
+    painter.hline(rect.left()..=rect.right(), rect.bottom() - 1.0, Stroke::new(1.0, p.border_soft()));
 }
 
 /// Custom pill toggle switch (42x22) with animated knob; replaces egui's
