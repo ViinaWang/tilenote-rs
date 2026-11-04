@@ -113,31 +113,16 @@ impl Library {
         components::section_head(ui, p, "LIBRARY", "笔记库",
             "全部笔记的地图与列表。双击地图磁贴或点击“打开磁贴”回到桌面。");
 
-        // Toolbar: view switch + search + category filter + actions.
+        // Toolbar row 1: view switch + search + primary actions.
         ui.horizontal(|ui| {
             components::segmented(ui, p, &["画布", "列表"], &mut self.view);
             ui.add_space(6.0);
+            let search_w = (ui.available_width() - 196.0).clamp(110.0, 190.0);
             let search = egui::TextEdit::singleline(&mut self.search)
                 .hint_text("⌕ 搜索标题 / 正文 / 分类")
-                .desired_width(190.0)
+                .desired_width(search_w)
                 .frame(true);
             ui.add(search);
-            ui.add_space(4.0);
-            let mut tags: Vec<String> = self.notes.iter().map(|n| n.tag.clone()).collect();
-            for c in &settings.categories {
-                if !tags.contains(c) { tags.push(c.clone()); }
-            }
-            if ui.add(filter_chip(p, self.filter_tag.is_none(), &format!("全部 {}", self.notes.len()))).clicked() {
-                self.filter_tag = None;
-            }
-            for tag in tags {
-                let count = self.notes.iter().filter(|n| n.tag == tag).count();
-                if count == 0 && self.filter_tag.as_deref() != Some(tag.as_str()) { continue; }
-                if ui.add(filter_chip(p, self.filter_tag.as_deref() == Some(tag.as_str()),
-                    &format!("{} {}", tag, count))).clicked() {
-                    self.filter_tag = Some(tag);
-                }
-            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let create = egui::Button::new(RichText::new("＋ 新建笔记").color(p.on_accent).size(12.5))
                     .fill(p.accent).corner_radius(CornerRadius::same(8))
@@ -156,6 +141,24 @@ impl Library {
                     self.rearrange_all(paths);
                 }
             });
+        });
+        // Toolbar row 2: category filter chips wrap instead of overflowing.
+        ui.horizontal_wrapped(|ui| {
+            let mut tags: Vec<String> = self.notes.iter().map(|n| n.tag.clone()).collect();
+            for c in &settings.categories {
+                if !tags.contains(c) { tags.push(c.clone()); }
+            }
+            if ui.add(filter_chip(p, self.filter_tag.is_none(), &format!("全部 {}", self.notes.len()))).clicked() {
+                self.filter_tag = None;
+            }
+            for tag in tags {
+                let count = self.notes.iter().filter(|n| n.tag == tag).count();
+                if count == 0 && self.filter_tag.as_deref() != Some(tag.as_str()) { continue; }
+                if ui.add(filter_chip(p, self.filter_tag.as_deref() == Some(tag.as_str()),
+                    &format!("{} {}", tag, count))).clicked() {
+                    self.filter_tag = Some(tag);
+                }
+            }
         });
         ui.add_space(10.0);
 
@@ -192,6 +195,9 @@ impl Library {
         }
         egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
             ui.set_min_size(canvas);
+            // Screen-space origin of the scroll content: map coordinates are
+            // content-relative, painters and interactions need screen space.
+            let origin = ui.next_widget_position();
             let clip = ui.clip_rect();
             // Dot grid over the visible part of the canvas.
             {
@@ -211,7 +217,10 @@ impl Library {
             for i in visible {
                 let id = self.notes[i].id.clone();
                 let selected = self.selected.as_deref() == Some(id.as_str());
-                let rect = egui::Rect::from_min_size(pos2(self.notes[i].map_x, self.notes[i].map_y), TILE_SIZE);
+                let rect = egui::Rect::from_min_size(
+                    pos2(origin.x + self.notes[i].map_x, origin.y + self.notes[i].map_y),
+                    TILE_SIZE,
+                );
                 let response = ui.allocate_rect(rect, Sense::click_and_drag());
                 let painter = ui.painter();
                 // Card visuals.
@@ -255,8 +264,14 @@ impl Library {
 
     fn show_list(&mut self, ui: &mut egui::Ui, p: Palette, paths: &Paths, settings: &Settings) {
         let selected_id = self.selected.clone();
+        // Responsive three-pane layout: drop the detail pane on narrow windows
+        // instead of squeezing the note list to a negative width.
+        let avail = ui.available_width();
+        let tags_w = if avail > 420.0 { 128.0 } else { 104.0 };
+        let detail_w = if avail > 620.0 { (avail * 0.40).clamp(240.0, 330.0) } else { 0.0 };
         egui::SidePanel::left("lib_tags")
-            .exact_width(150.0)
+            .exact_width(tags_w)
+            .resizable(false)
             .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(4, 0)))
             .show_inside(ui, |ui| {
                 let total = self.notes.len();
@@ -270,17 +285,21 @@ impl Library {
                 for tag in tags {
                     let count = self.notes.iter().filter(|n| n.tag == tag).count();
                     if count == 0 { continue; }
-                    if ui.add(nav_item(p, self.filter_tag.as_deref() == Some(tag.as_str()), &tag, count, "▌")).clicked() {
+                    if ui.add(nav_item(p, self.filter_tag.as_deref() == Some(tag.as_str()),
+                        &components::truncate_chars(&tag, 6), count, "▌")).clicked() {
                         self.filter_tag = Some(tag);
                     }
                 }
             });
-        egui::SidePanel::right("lib_detail")
-            .exact_width(330.0)
-            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(6, 0)))
-            .show_inside(ui, |ui| {
-                self.detail(ui, p, paths);
-            });
+        if detail_w > 0.0 {
+            egui::SidePanel::right("lib_detail")
+                .exact_width(detail_w)
+                .resizable(false)
+                .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(6, 0)))
+                .show_inside(ui, |ui| {
+                    self.detail(ui, p, paths);
+                });
+        }
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
             .show_inside(ui, |ui| {

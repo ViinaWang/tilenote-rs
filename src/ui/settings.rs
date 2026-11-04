@@ -83,9 +83,10 @@ impl SettingsApp {
                     ui.label(RichText::new("TileNote").size(13.0).strong().color(p.strong));
                     ui.label(RichText::new(SECTIONS[self.section.min(7)].1)
                         .monospace().size(9.5).color(p.faint));
-                    // Drag zone between identity and search.
+                    // Drag zone and search width adapt to narrow windows.
                     let rest = ui.available_width();
-                    let drag_w = (rest - 316.0).max(30.0);
+                    let search_w = (rest - 140.0).clamp(96.0, 200.0);
+                    let drag_w = (rest - search_w - 118.0).max(16.0);
                     let drag = ui.allocate_response(Vec2::new(drag_w, TITLE_H - 6.0), Sense::drag());
                     if drag.drag_started() {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
@@ -94,7 +95,7 @@ impl SettingsApp {
                     // Search box.
                     let search = egui::TextEdit::singleline(&mut self.search)
                         .hint_text("⌕ 搜索设置项…")
-                        .desired_width(200.0);
+                        .desired_width(search_w);
                     ui.add(search).on_hover_text("按名称搜索设置项并跳转");
                     window_controls(ui, p);
                 });
@@ -121,7 +122,7 @@ impl SettingsApp {
                     )
                     .fill(if active { p.accent.gamma_multiply(0.13) } else { Color32::TRANSPARENT })
                     .corner_radius(CornerRadius::same(8))
-                    .min_size(Vec2::new(0.0, 34.0));
+                    .min_size(Vec2::new(ui.available_width(), 34.0));
                     if ui.add(btn).clicked() { self.section = i; }
                     if i == 0 {
                         ui.add_space(4.0);
@@ -267,10 +268,11 @@ impl SettingsApp {
                             egui::Rect::from_min_size(pos2(mock.min.x + 6.0, mock.min.y + 8.0), Vec2::new(28.0, 5.0)), 2.0, p.accent);
                         painter.rect_filled(
                             egui::Rect::from_min_size(pos2(mock.min.x + 6.0, mock.min.y + 20.0), Vec2::new(20.0, 4.0)), 2.0, chrome);
+                        let fit = ((rect.width() / 10.0) as usize).max(6);
                         painter.text(pos2(rect.min.x, rect.min.y + 56.0), Align2::LEFT_CENTER,
-                            name, FontId::proportional(12.5), p.strong);
+                            components::truncate_chars(name, fit), FontId::proportional(12.5), p.strong);
                         painter.text(pos2(rect.min.x, rect.min.y + 72.0), Align2::LEFT_CENTER,
-                            desc, FontId::proportional(9.5), p.dim);
+                            components::truncate_chars(desc, fit), FontId::proportional(9.5), p.dim);
                         ui.allocate_response(rect.size(), Sense::hover());
                     });
                     if response.clicked() {
@@ -320,10 +322,12 @@ impl SettingsApp {
                         painter.rect_filled(
                             egui::Rect::from_min_max(mock.min, pos2(mock.min.x + 2.0, mock.bottom())),
                             CornerRadius { nw: 3, ne: 0, sw: 3, se: 0 }, p.accent);
+                        let fit = ((rect.width() / 10.0) as usize).max(6);
                         painter.text(pos2(rect.min.x, rect.min.y + 66.0), Align2::LEFT_CENTER,
-                            format!("{name} · {}×{}", w as u32, h as u32), FontId::proportional(12.5), p.strong);
+                            components::truncate_chars(&format!("{name} · {}×{}", w as u32, h as u32), fit),
+                            FontId::proportional(12.5), p.strong);
                         painter.text(pos2(rect.min.x, rect.min.y + 82.0), Align2::LEFT_CENTER,
-                            desc, FontId::proportional(9.5), p.dim);
+                            components::truncate_chars(desc, fit), FontId::proportional(9.5), p.dim);
                         ui.allocate_response(rect.size(), Sense::hover());
                     });
                     if response.clicked() {

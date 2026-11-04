@@ -132,8 +132,8 @@ fn run_settings(paths: Paths) -> Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_title("TileNote — 设置")
             .with_app_id(hyprland::SETTINGS_APP_ID)
-            .with_inner_size(egui::vec2(760.0, 580.0))
-            .with_min_inner_size(egui::vec2(680.0, 460.0))
+            .with_inner_size(egui::vec2(920.0, 620.0))
+            .with_min_inner_size(egui::vec2(820.0, 500.0))
             .with_decorations(false),
         ..Default::default()
     };

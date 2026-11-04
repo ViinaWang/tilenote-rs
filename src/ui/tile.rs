@@ -138,9 +138,12 @@ impl TileApp {
                     FontId::proportional(9.0), Color32::WHITE);
             }
             ui.add_space(4.0);
+            // Title width adapts so the tool cluster never overlaps it.
+            let avail = ui.available_width();
+            let title_w = (avail - 150.0).clamp(48.0, 130.0);
             let title = ui.add(
                 egui::TextEdit::singleline(&mut self.meta.title)
-                    .desired_width(112.0)
+                    .desired_width(title_w)
                     .frame(false)
                     .hint_text("未命名磁贴"),
             );
@@ -152,8 +155,8 @@ impl TileApp {
             }
             // Drag zone over the remaining title space.
             let rest = ui.available_width();
-            if rest > 118.0 {
-                let drag = ui.allocate_response(Vec2::new(rest - 114.0, TITLE_H - 6.0), Sense::drag());
+            if rest > 128.0 {
+                let drag = ui.allocate_response(Vec2::new(rest - 124.0, TITLE_H - 6.0), Sense::drag());
                 if drag.drag_started() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
                 }

@@ -9,6 +9,13 @@ use eframe::egui::{
     pos2,
 };
 
+/// Truncate a string to at most `max_chars` characters, appending an ellipsis.
+pub fn truncate_chars(text: &str, max_chars: usize) -> String {
+    let mut out: String = text.chars().take(max_chars).collect();
+    if text.chars().count() > max_chars { out.push('…'); }
+    out
+}
+
 /// Mono kicker label: 3px accent bar + small uppercase tracking text.
 pub fn kicker(ui: &mut Ui, p: Palette, text: &str) {
     ui.horizontal(|ui| {
@@ -59,11 +66,12 @@ pub fn group(ui: &mut Ui, p: Palette, icon: &str, title: &str, desc: &str, body:
             painter.text(icon_rect.center(), Align2::CENTER_CENTER, icon,
                 FontId::proportional(13.0), p.accent);
             let text_x = icon_rect.right() + 10.0;
+            let max_chars = (((header.right() - text_x - 18.0) / 10.5).max(4.0)) as usize;
             painter.text(pos2(text_x, header.min.y + header_h * 0.30), Align2::LEFT_CENTER,
-                title, FontId::proportional(13.0), p.strong);
+                truncate_chars(title, max_chars), FontId::proportional(13.0), p.strong);
             if !desc.is_empty() {
                 painter.text(pos2(text_x, header.min.y + header_h * 0.72), Align2::LEFT_CENTER,
-                    desc, FontId::proportional(10.5), p.dim);
+                    truncate_chars(desc, max_chars), FontId::proportional(10.5), p.dim);
             }
             ui.add_space(6.0);
             body(ui);
@@ -89,22 +97,43 @@ pub fn setting_row(
     };
     let width = ui.available_width();
     let top_left = ui.cursor().min;
+    // Narrow windows: stack the control below the label instead of letting a
+    // right-to-left control row collide with the label column.
+    let stacked = width < 480.0;
     ui.add_space(pad);
-    ui.horizontal(|ui| {
-        ui.add_space(18.0);
-        ui.vertical(|ui| {
-            ui.set_min_width((width * 0.52).min(360.0).max(120.0));
-            ui.set_max_width((width * 0.60).max(160.0));
-            ui.label(RichText::new(label).size(13.0).color(p.strong));
-            if !desc.is_empty() {
-                ui.label(RichText::new(desc).size(11.0).color(p.dim));
-            }
+    if stacked {
+        ui.horizontal(|ui| {
+            ui.add_space(18.0);
+            ui.vertical(|ui| {
+                ui.set_max_width((width - 36.0).max(80.0));
+                ui.label(RichText::new(label).size(13.0).color(p.strong));
+                if !desc.is_empty() {
+                    ui.label(RichText::new(desc).size(11.0).color(p.dim));
+                }
+            });
         });
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add_space(16.0);
+        ui.add_space(2.0);
+        ui.horizontal(|ui| {
+            ui.add_space(18.0);
             body(ui);
         });
-    });
+    } else {
+        ui.horizontal(|ui| {
+            ui.add_space(18.0);
+            ui.vertical(|ui| {
+                ui.set_min_width((width * 0.42).clamp(140.0, 300.0));
+                ui.set_max_width((width * 0.50).max(160.0));
+                ui.label(RichText::new(label).size(13.0).color(p.strong));
+                if !desc.is_empty() {
+                    ui.label(RichText::new(desc).size(11.0).color(p.dim));
+                }
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(16.0);
+                body(ui);
+            });
+        });
+    }
     ui.add_space(pad);
     let rect = egui::Rect::from_min_max(top_left, pos2(ui.cursor().min.x + width, ui.cursor().min.y - 2.0));
     let painter = ui.painter();
