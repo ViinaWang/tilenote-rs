@@ -1,6 +1,6 @@
 use crate::model::{Settings, Theme};
 use eframe::egui::{self, Color32, FontData, FontDefinitions, FontFamily, FontId, TextStyle};
-use std::{fs, path::Path, sync::Arc};
+use std::{borrow::Cow, fs, path::Path, process::Command, sync::Arc};
 
 pub const DARK_ACCENTS: [Color32; 6] = [
     Color32::from_rgb(97, 175, 239), // One Dark Pro blue
@@ -85,29 +85,59 @@ pub fn apply(ctx: &egui::Context, s: &Settings) {
 
 /// egui's bundled fonts lack comprehensive CJK coverage. Load an installed
 /// font at runtime; do not distribute or embed third-party font files.
+///
+/// CJK fonts ship as .ttc collections whose face 0 is usually the Japanese or
+/// Korean variant (upstream Noto CJK order: JP, KR, SC, TC, HK), which renders
+/// Han characters with the wrong regional glyph shapes. Always resolve the
+/// Simplified-Chinese face index explicitly instead of relying on the default.
 pub fn install_cjk_fallback(ctx: &egui::Context) {
-    let mut paths: Vec<String> = Vec::new();
-    if let Ok(font) = std::env::var("TILENOTE_FONT") { paths.push(font); }
-    paths.extend([
-        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/TTF/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/TTF/NotoSansSC-Regular.otf",
-        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-    ].into_iter().map(str::to_owned));
-    let maybe = paths.iter().find_map(|p| {
-        if Path::new(p).is_file() { fs::read(p).ok() } else { None }
-    });
-    if let Some(bytes) = maybe {
-        let mut fonts = FontDefinitions::default();
-        fonts.font_data.insert("tilenote-cjk".to_owned(), Arc::new(FontData::from_owned(bytes)));
-        for family in [FontFamily::Proportional, FontFamily::Monospace] {
-            if let Some(names) = fonts.families.get_mut(&family) { names.push("tilenote-cjk".to_owned()); }
-        }
-        ctx.set_fonts(fonts);
+    let mut candidates: Vec<(String, u32)> = Vec::new();
+    if let Ok(spec) = std::env::var("TILENOTE_FONT") {
+        // Accepts "/path/font.ttf" or "/path/font.ttc:2".
+        let (path, index) = match spec.rsplit_once(':') {
+            Some((p, i)) if !i.is_empty() && i.bytes().all(|b| b.is_ascii_digit()) =>
+                (p.to_owned(), i.parse().unwrap_or(0)),
+            _ => (spec, 0),
+        };
+        candidates.push((path, index));
     }
+    if let Some(found) = fontconfig_sc_face() { candidates.push(found); }
+    candidates.extend([
+        ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc", 2),
+        ("/usr/share/fonts/TTF/NotoSansCJK-Regular.ttc", 2),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 2),
+        ("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 2),
+        ("/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc", 2),
+        ("/usr/share/fonts/TTF/NotoSansSC-Regular.otf", 0),
+        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", 0),
+    ].into_iter().map(|(p, i)| (p.to_owned(), i)));
+    let found = candidates.iter().find(|(path, _)| Path::new(path).is_file());
+    if let Some((path, index)) = found {
+        if let Ok(bytes) = fs::read(path) {
+            let mut fonts = FontDefinitions::default();
+            fonts.font_data.insert("tilenote-cjk".to_owned(), Arc::new(FontData {
+                font: Cow::Owned(bytes),
+                index: *index,
+                tweak: Default::default(),
+            }));
+            for family in [FontFamily::Proportional, FontFamily::Monospace] {
+                if let Some(names) = fonts.families.get_mut(&family) { names.push("tilenote-cjk".to_owned()); }
+            }
+            ctx.set_fonts(fonts);
+        }
+    }
+}
+
+/// Ask fontconfig for the system's Simplified-Chinese sans face; it knows the
+/// correct face index inside .ttc collections (format: "path|index").
+fn fontconfig_sc_face() -> Option<(String, u32)> {
+    let out = Command::new("fc-match")
+        .args(["--format=%{file}|%{index}", "Noto Sans CJK SC"])
+        .output().ok()?;
+    if !out.status.success() { return None; }
+    let text = String::from_utf8(out.stdout).ok()?;
+    let (path, index) = text.trim().rsplit_once('|')?;
+    Some((path.to_owned(), index.parse().ok()?))
 }
 
 pub fn frame(p: Palette, radius: u8) -> egui::Frame {

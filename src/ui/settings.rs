@@ -244,12 +244,12 @@ impl SettingsApp {
 
     fn hotkeys(&self, ui: &mut egui::Ui, p: Palette) {
         Self::section_heading(ui, "快捷键", "PANE 04 / 05", p);
-        ui.label("全局快捷键由 Hyprland 负责，TileNote 不抢占系统按键。");
+        ui.label("全局快捷键由 Hyprland 负责，TileNote 不抢占系统按键。以下键位仅为示例，请避开你已占用的组合。");
         ui.add_space(15.0);
         for (key, cmd, desc) in [
-            ("SUPER + N", "tilenote toggle", "隐藏 / 呼出所有笔记磁贴"),
-            ("SUPER + SHIFT + N", "tilenote new", "创建并打开新笔记"),
-            ("SUPER + ALT + N", "tilenote settings", "打开设置"),
+            ("SUPER + M", "tilenote toggle", "隐藏 / 呼出所有笔记磁贴"),
+            ("SUPER + SHIFT + M", "tilenote new", "创建并打开新笔记"),
+            ("SUPER + ALT + M", "tilenote settings", "打开设置"),
         ] {
             palette::frame(p, self.settings.corner_radius).show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -263,7 +263,7 @@ impl SettingsApp {
             });
             ui.add_space(5.0);
         }
-        ui.colored_label(p.muted, "具体绑定语法取决于 Hyprland 版本。请参考 examples 目录里的配置示例。");
+        ui.colored_label(p.muted, "具体绑定语法取决于 Hyprland 版本。请参考 examples 目录里的配置示例（含 hyprlang 与 Lua 两种）。");
     }
 
     fn about(&self, ui: &mut egui::Ui, p: Palette) {
