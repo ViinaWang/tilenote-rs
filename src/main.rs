@@ -122,9 +122,7 @@ fn run_settings(paths: Paths) -> Result<()> {
     // Focus an already open preferences window rather than open duplicates.
     if let Ok(clients) = hyprland::clients() {
         if let Some(existing) = clients.iter().find(|c| c.class == hyprland::SETTINGS_APP_ID) {
-            let _ = Command::new("hyprctl")
-                .args(["dispatch", "focuswindow", &format!("address:{}", existing.address)])
-                .status();
+            let _ = hyprland::focus_address(&existing.address);
             return Ok(());
         }
     }

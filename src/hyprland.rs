@@ -1,6 +1,11 @@
 //! Hyprland-specific integration. Window stacking/pinning are compositor
 //! responsibilities on Wayland; a normal xdg-toplevel cannot demand global
 //! always-on-top regardless of other clients.
+//!
+//! Hyprland 0.55+ parses `hyprctl dispatch` arguments as Lua dispatcher
+//! expressions (`hl.dsp.…`); the legacy `dispatch <action> <args>` form is
+//! rejected there. All window actions below use the Lua API with explicit
+//! `address:0x…` selectors so they work without changing focus.
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::{process::Command, thread, time::Duration};
@@ -38,12 +43,60 @@ fn json<T: serde::de::DeserializeOwned>(args: &[&str]) -> Result<T> {
     anyhow::ensure!(out.status.success(), "hyprctl error: {}", String::from_utf8_lossy(&out.stderr));
     Ok(serde_json::from_slice(&out.stdout)?)
 }
-fn dispatch(action: &str, argument: &str) -> Result<()> {
+
+/// Run a Lua dispatcher expression through hyprctl, e.g.
+/// `hl.dsp.window.float({ action = "set", window = "address:0x55…" })`.
+fn dispatch_lua(expr: &str) -> Result<()> {
     let out = Command::new("hyprctl")
-        .args(["dispatch", action, argument]).output()
-        .with_context(|| format!("running hyprctl dispatch {action}"))?;
-    anyhow::ensure!(out.status.success(), "Hyprland refused {action}: {}", String::from_utf8_lossy(&out.stderr));
+        .args(["dispatch", expr])
+        .output()
+        .with_context(|| format!("running hyprctl dispatch {expr}"))?;
+    anyhow::ensure!(
+        out.status.success(),
+        "Hyprland refused: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     Ok(())
+}
+
+fn sel(address: &str) -> String {
+    format!("address:{address}")
+}
+
+fn float_window(address: &str) -> Result<()> {
+    dispatch_lua(&format!(
+        "hl.dsp.window.float({{ action = \"set\", window = \"{}\" }})",
+        sel(address)
+    ))
+}
+
+/// Pin toggles: a pinned window is visible on every workspace.
+fn pin_window(address: &str) -> Result<()> {
+    dispatch_lua(&format!(
+        "hl.dsp.window.pin({{ window = \"{}\" }})",
+        sel(address)
+    ))
+}
+
+fn raise_window(address: &str) {
+    let _ = dispatch_lua(&format!(
+        "hl.dsp.window.alter_zorder({{ mode = \"top\", window = \"{}\" }})",
+        sel(address)
+    ));
+}
+
+fn focus_window(address: &str) -> Result<()> {
+    dispatch_lua(&format!(
+        "hl.dsp.focus({{ window = \"{}\" }})",
+        sel(address)
+    ))
+}
+
+fn move_to_workspace(address: &str, workspace: &str) -> Result<()> {
+    dispatch_lua(&format!(
+        "hl.dsp.window.move({{ workspace = \"{workspace}\", follow = false, window = \"{}\" }})",
+        sel(address)
+    ))
 }
 
 pub fn clients() -> Result<Vec<Client>> { json(&["clients", "-j"]) }
@@ -53,7 +106,6 @@ pub fn tile_clients() -> Result<Vec<Client>> {
 pub fn find_tile(id: &str) -> Result<Option<Client>> {
     Ok(tile_clients()?.into_iter().find(|c| c.title == title_for(id)))
 }
-fn target(c: &Client) -> String { format!("address:{}", c.address) }
 fn hidden(c: &Client) -> bool {
     c.workspace.as_ref().is_some_and(|w| w.name == HIDDEN_WORKSPACE)
 }
@@ -63,18 +115,17 @@ fn current_workspace() -> Result<i32> {
 
 pub fn make_tile_float_and_pin(id: &str, want_pin: bool) -> Result<()> {
     let c = find_tile(id)?.context("tile window not found")?;
-    // Always dispatch setfloating: it is idempotent for already-floating
-    // windows and removes the tiled-then-floated flicker when the window is
-    // registered before our first poll observes it.
-    let _ = dispatch("setfloating", &target(&c));
-    if c.pinned != want_pin { dispatch("pin", &target(&c))?; }
-    let _ = dispatch("alterzorder", &format!("top,{}", target(&c)));
+    // Always dispatch float: it is idempotent with action=set and removes the
+    // tiled-then-floated flicker when the window is registered late.
+    float_window(&c.address)?;
+    if c.pinned != want_pin { pin_window(&c.address)?; }
+    raise_window(&c.address);
     Ok(())
 }
 
 /// Newly spawned windows register their app_id some time after the first
 /// frame; poll fast at first, then keep retrying for a long while so slow
-/// starts (cold compile caches, heavy compositor load) still get floated.
+/// starts (cold caches, heavy compositor load) still get floated.
 pub fn pin_when_ready(id: String, want_pin: bool) {
     thread::spawn(move || {
         let start = std::time::Instant::now();
@@ -97,13 +148,21 @@ pub fn set_pin(id: &str, pinned: bool) -> Result<()> {
     make_tile_float_and_pin(id, pinned)
 }
 
+/// Bring an existing window to the front and focus it (used to reuse a
+/// running settings window instead of spawning a duplicate).
+pub fn focus_address(address: &str) -> Result<()> {
+    focus_window(address)?;
+    raise_window(address);
+    Ok(())
+}
+
 pub fn focus_tile(id: &str, desired_pin: bool) -> Result<bool> {
     if let Some(c) = find_tile(id)? {
         if hidden(&c) {
             show_client(&c, current_workspace()?, desired_pin)?;
         }
-        dispatch("focuswindow", &target(&c))?;
-        let _ = dispatch("alterzorder", &format!("top,{}", target(&c)));
+        focus_window(&c.address)?;
+        raise_window(&c.address);
         return Ok(true);
     }
     Ok(false)
@@ -112,14 +171,14 @@ pub fn focus_tile(id: &str, desired_pin: bool) -> Result<bool> {
 fn hide_client(c: &Client) -> Result<()> {
     if hidden(c) { return Ok(()); }
     // Pinned windows ignore workspace changes, so unpin before hiding.
-    if c.pinned { dispatch("pin", &target(c))?; }
-    dispatch("movetoworkspacesilent", &format!("{HIDDEN_WORKSPACE},{}", target(c)))
+    if c.pinned { pin_window(&c.address)?; }
+    move_to_workspace(&c.address, HIDDEN_WORKSPACE)
 }
 
 fn show_client(c: &Client, ws: i32, pin: bool) -> Result<()> {
-    dispatch("movetoworkspacesilent", &format!("{ws},{}", target(c)))?;
-    if pin { dispatch("pin", &target(c))?; }
-    let _ = dispatch("alterzorder", &format!("top,{}", target(c)));
+    move_to_workspace(&c.address, &ws.to_string())?;
+    if pin { pin_window(&c.address)?; }
+    raise_window(&c.address);
     Ok(())
 }
 
@@ -134,7 +193,7 @@ pub fn show_all(want_pin: impl Fn(&str) -> bool) -> Result<usize> {
         }
     }
     if let Some(last) = tiles.first() {
-        let _ = dispatch("focuswindow", &target(last));
+        let _ = focus_window(&last.address);
     }
     Ok(tiles.len())
 }
